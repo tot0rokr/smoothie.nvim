@@ -1,0 +1,33 @@
+name: test
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    name: Neovim ${{ matrix.nvim }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        nvim: [v0.10.4, v0.11.4, v0.12.5]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Neovim ${{ matrix.nvim }}
+        run: |
+          curl -sSfL -o "$RUNNER_TEMP/nvim.tar.gz" \
+            "https://github.com/neovim/neovim/releases/download/${{ matrix.nvim }}/nvim-linux-x86_64.tar.gz"
+          mkdir -p "$RUNNER_TEMP/nvim"
+          tar xzf "$RUNNER_TEMP/nvim.tar.gz" -C "$RUNNER_TEMP/nvim" --strip-components=1
+          echo "$RUNNER_TEMP/nvim/bin" >> "$GITHUB_PATH"
+
+      - name: Run tests
+        env:
+          # Startup time depends on the runner; the local default is 1.5 ms.
+          SMOOTHIE_TEST_STARTUP_BUDGET_MS: '5'
+        run: |
+          nvim --version | head -n 1
+          nvim --headless --clean -c "luafile tests/run.lua"

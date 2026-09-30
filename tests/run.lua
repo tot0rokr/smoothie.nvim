@@ -3,6 +3,7 @@
 --   SMOOTHIE_TEST_FULL=1         full parity matrix
 --   SMOOTHIE_TEST_RTP=<dir>      plugin root to test (default: the repository root)
 --   SMOOTHIE_TEST_VERBOSE=1      list every failed case of multi-case tests
+--   SMOOTHIE_TEST_STARTUP_BUDGET_MS=<ms>  startup budget of plugin/smoothie.lua (default 1.5)
 local TESTS = vim.fn.fnamemodify(debug.getinfo(1, 'S').source:sub(2), ':p:h')
 local ROOT = vim.env.SMOOTHIE_TEST_RTP or vim.fn.fnamemodify(TESTS, ':h')
 local CASES = {

@@ -1,5 +1,7 @@
 # smoothie.nvim
 
+[![test](https://github.com/tot0rokr/smoothie.nvim/actions/workflows/test.yml/badge.svg)](https://github.com/tot0rokr/smoothie.nvim/actions/workflows/test.yml)
+
 Smooth scrolling for Neovim, in Lua. A reimplementation of [vim-smoothie](https://github.com/psliwka/vim-smoothie) that moves in screen rows, lands exactly where the native command lands, and stays out of the way of your input and your other plugins.
 
 [한국어 README](docs/README.ko.md)
@@ -210,13 +212,15 @@ nvim --headless --clean -c "luafile tests/run.lua"
 - Every test is compared with a native reference run: the same input and timing with the plugin's mappings removed.
 - Start it with another `nvim` binary to test that version; child processes use the same binary.
 - Results: 0.12.5 and 0.11.4 give 134 ok, 0 FAIL, 5 RESIDUAL; 0.10.4 gives 117 ok, 0 FAIL, 5 RESIDUAL (the `quiet` tests are registered only on 0.11 and later).
+- CI (`.github/workflows/test.yml`) runs the suite on Neovim 0.10.4, 0.11.4 and 0.12.5 for every push and pull request, with a startup budget of 5 ms because runner speed varies.
 
-| Variable                      | Effect                                                   |
-| ----------------------------- | -------------------------------------------------------- |
-| `SMOOTHIE_TEST=<lua pattern>` | Run only tests whose `"<id> <name>"` matches             |
-| `SMOOTHIE_TEST_FULL=1`        | Extend the landing matrix (`scrolloff=999`, top of file) |
-| `SMOOTHIE_TEST_RTP=<dir>`     | Plugin root to test (default: this repository)           |
-| `SMOOTHIE_TEST_VERBOSE=1`     | List every failed case of multi-case tests               |
+| Variable                               | Effect                                                   |
+| -------------------------------------- | -------------------------------------------------------- |
+| `SMOOTHIE_TEST=<lua pattern>`          | Run only tests whose `"<id> <name>"` matches             |
+| `SMOOTHIE_TEST_FULL=1`                 | Extend the landing matrix (`scrolloff=999`, top of file) |
+| `SMOOTHIE_TEST_RTP=<dir>`              | Plugin root to test (default: this repository)           |
+| `SMOOTHIE_TEST_VERBOSE=1`              | List every failed case of multi-case tests               |
+| `SMOOTHIE_TEST_STARTUP_BUDGET_MS=<ms>` | Startup budget of `plugin/smoothie.lua` (default 1.5)    |
 
 Benchmark against vim-smoothie (about 26 minutes from an empty `OUT`, 12 when the baselines are reused):
 

@@ -5,7 +5,7 @@ local prep = H.prep
 local SLACK_FRAMES = 3
 local SLACK_MS = 30
 local FIRST_FRAME_MS = 10
-local STARTUP_BUDGET_MS = 1.5
+local STARTUP_BUDGET_MS = tonumber(vim.env.SMOOTHIE_TEST_STARTUP_BUDGET_MS) or 1.5
 local STARTUP_RUNS = 7
 local DEFAULT_KEYS = { '<C-D>', '<C-U>', '<C-F>', '<C-B>', '<PageDown>', '<PageUp>', '<S-Down>', '<S-Up>',
   'z+', 'z^', 'zt', 'z<CR>', 'z.', 'zz', 'z-', 'zb' }

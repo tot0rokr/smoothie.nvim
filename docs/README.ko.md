@@ -1,5 +1,7 @@
 # smoothie.nvim
 
+[![test](https://github.com/tot0rokr/smoothie.nvim/actions/workflows/test.yml/badge.svg)](https://github.com/tot0rokr/smoothie.nvim/actions/workflows/test.yml)
+
 Neovim용 smooth scrolling plugin이다. [vim-smoothie](https://github.com/psliwka/vim-smoothie)를 Lua로 다시 구현했고, screen row 단위로 움직이며, native command와 같은 곳에 land하고, 입력과 다른 plugin을 방해하지 않는다.
 
 [English README](../README.md)
@@ -210,13 +212,15 @@ nvim --headless --clean -c "luafile tests/run.lua"
 - 모든 test는 native reference run과 비교한다. 같은 입력과 timing으로 plugin mapping만 뺀 run이다.
 - 다른 `nvim` binary로 시작하면 그 version을 test한다. child process도 같은 binary를 쓴다.
 - 결과: 0.12.5와 0.11.4는 134 ok, 0 FAIL, 5 RESIDUAL, 0.10.4는 117 ok, 0 FAIL, 5 RESIDUAL이다. `quiet` test는 0.11 이상에서만 등록한다.
+- CI(`.github/workflows/test.yml`)는 push와 pull request마다 Neovim 0.10.4, 0.11.4, 0.12.5에서 suite를 돌린다. runner 속도가 일정하지 않아 시작 시간 예산은 5 ms로 둔다.
 
-| Variable                      | 뜻                                                 |
-| ----------------------------- | -------------------------------------------------- |
-| `SMOOTHIE_TEST=<lua pattern>` | `"<id> <name>"`이 match하는 test만 실행한다        |
-| `SMOOTHIE_TEST_FULL=1`        | 착지 matrix를 넓힌다 (`scrolloff=999`, 파일 맨 위) |
-| `SMOOTHIE_TEST_RTP=<dir>`     | test할 plugin root (기본: 이 저장소)               |
-| `SMOOTHIE_TEST_VERBOSE=1`     | case가 여럿인 test의 실패 case를 모두 출력한다     |
+| Variable                               | 뜻                                                 |
+| -------------------------------------- | -------------------------------------------------- |
+| `SMOOTHIE_TEST=<lua pattern>`          | `"<id> <name>"`이 match하는 test만 실행한다        |
+| `SMOOTHIE_TEST_FULL=1`                 | 착지 matrix를 넓힌다 (`scrolloff=999`, 파일 맨 위) |
+| `SMOOTHIE_TEST_RTP=<dir>`              | test할 plugin root (기본: 이 저장소)               |
+| `SMOOTHIE_TEST_VERBOSE=1`              | case가 여럿인 test의 실패 case를 모두 출력한다     |
+| `SMOOTHIE_TEST_STARTUP_BUDGET_MS=<ms>` | `plugin/smoothie.lua` 시작 시간 예산 (기본 1.5)    |
 
 vim-smoothie 대비 benchmark (빈 `OUT`에서 약 26분, 기준 결과를 다시 쓰면 약 12분):
 
