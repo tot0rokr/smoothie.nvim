@@ -1,0 +1,347 @@
+*smoothie.txt*	Smooth scrolling for Neovim
+
+Author:   TOT0Ro
+License:  MIT, see the LICENSE file
+Requires: Neovim 0.10 or later ('quiet' needs 0.11)
+
+==============================================================================
+CONTENTS                                                   *smoothie-contents*
+
+  1. Introduction ........................... |smoothie-intro|
+  2. Setup .................................. |smoothie-setup|
+  3. Options ................................ |smoothie-options|
+  4. Commands ............................... |smoothie-commands|
+  5. Lua API ................................ |smoothie-api|
+  6. Mappings ............................... |smoothie-mappings|
+  7. Disabling .............................. |smoothie-disable|
+  8. vim-smoothie compatibility ............. |smoothie-compat|
+  9. Behaviour .............................. |smoothie-behaviour|
+ 10. Events and quiet mode .................. |smoothie-events|
+ 11. Limitations ............................ |smoothie-limitations|
+
+==============================================================================
+1. INTRODUCTION                                               *smoothie-intro*
+
+smoothie.nvim animates scrolling commands such as |CTRL-D| and |zz|. It is a
+Lua reimplementation of vim-smoothie for Neovim.
+
+Each command runs once, natively, when its key is pressed. The plugin then
+animates the view and the cursor from what was on screen to that result.
+The animation ends exactly where the command would have left you, and
+jumps, marks, registers, the search state, 'scroll' and messages are the
+same as without the plugin (|smoothie-limitations| lists the exceptions).
+
+Distances are measured in screen rows, so closed folds, wrapped lines,
+virtual lines and diff filler move evenly. A key typed during an animation
+lands it first and then acts on the final state. The same scroll key typed
+again continues the motion at its current speed.
+
+==============================================================================
+2. SETUP                                                      *smoothie-setup*
+
+The plugin works without configuration: it maps the default keys when it
+loads. To change options, call setup() (with lazy.nvim, pass `opts`): >lua
+
+    require('smoothie').setup({
+      duration = 300,
+      jumps = true,
+    })
+<
+setup() may run before or after the plugin loads. The animation engine loads
+on the first scroll, so the plugin needs no lazy-loading.
+
+                                                            *smoothie.setup()*
+setup({opts})
+    Applies {opts} over the defaults (not over a previous call), removes the
+    mappings an earlier call created and maps again. An unknown option or a
+    wrong type raises an error.
+
+==============================================================================
+3. OPTIONS                                                  *smoothie-options*
+
+enabled ~
+    boolean, default `true`. Master switch, also set by |:Smoothie|.
+
+keys ~
+    list of keys in |<>| notation, default |smoothie.default_keys|. Mapped
+    in Normal and Visual mode. `{}` maps none.
+
+jumps ~
+    boolean, default `false`. Also map `gg` and `G`.
+
+search ~
+    boolean, default `false`. Also map `n` `N` `*` `#` `g*` `g#`.
+
+mouse ~
+    boolean, default `false`. Also map <ScrollWheelDown> and <ScrollWheelUp>.
+    The window under the pointer scrolls; wheel events accumulate.
+
+duration ~
+    number (ms), default `400`. Time of a motion of at least one window
+    height. A motion of `r` rows in a window of `height` rows takes
+    `duration * sqrt(r / height)` when it is shorter.
+
+easing ~
+    `'linear'`, `'quadratic'`, `'cubic'` (default), `'quartic'`,
+    `'quintic'`, or the power as an integer 1 to 5. All are ease-out curves
+    `1 - (1 - t)^n`: a larger power starts faster and ends slower.
+
+fps ~
+    number 1 to 240, default `60`. Frame-rate cap.
+
+max_travel ~
+    number, default `2`. Window heights actually animated. A longer jump
+    starts this far from its target, with one cut at the start.
+
+quiet ~
+    boolean, default `false`. Fire |WinScrolled| and |CursorMoved| once per
+    motion instead of once per frame (|smoothie-quiet|). Needs
+    'eventignorewin' (Neovim 0.11); on 0.10 it acts as `false` and
+    |:checkhealth| warns about it.
+
+max_filesize ~
+    number of bytes or `false`, default `false`. Buffers larger than this
+    scroll instantly. The buffer's own size counts, so unsaved and generated
+    buffers are covered too: `max_filesize = 2 * 1024 * 1024` keeps files
+    over 2 MiB instant.
+
+exclude_binary ~
+    boolean, default `true`. Binary buffers scroll instantly. A buffer is
+    binary when 'binary' is set or its file has a NUL byte in the first
+    8 KiB, the check git uses.                           *b:smoothie_binary*
+    The file is read once per buffer and the answer kept in
+    `b:smoothie_binary`; set that variable to decide yourself.
+
+exclude_filetypes ~
+    list, default `{}`. Filetypes where scrolling is instant.
+
+exclude_buftypes ~
+    list, default `{ 'terminal', 'prompt' }`. Buftypes where scrolling is
+    instant.
+
+==============================================================================
+4. COMMANDS                                                *smoothie-commands*
+
+                                                                   *:Smoothie*
+:Smoothie [{action}]
+    {action} is `enable`, `disable` or `toggle` (the default). The mappings
+    stay in place; while disabled they scroll instantly.
+
+:checkhealth smoothie
+    Shows the Neovim features in use, why the plugin is disabled (if it
+    is), the settings, keys left alone because something else maps them,
+    ignored vim-smoothie globals and the engine state.
+
+==============================================================================
+5. LUA API                                                      *smoothie-api*
+
+All functions are in `require('smoothie')`.
+
+scroll({keys}, {opts})                                     *smoothie.scroll()*
+    Runs {keys} (|<>| notation, e.g. `'<C-d>zz'`) natively in a window and
+    animates the resulting view change as one motion. {opts}:
+      `count`  prefixed to {keys} when > 0 (default |v:count|)
+      `win`    window (default: current; 0 or an invalid id: current)
+    Returns `true` when an animation started. It runs instantly while a
+    macro executes and in the cases of |smoothie-disable| and
+    |smoothie-behaviour|. The plugin's own scrolling leaves |v:count| as it
+    was, so several calls in one callback all get the typed count.
+
+is_animating([{win}])                                *smoothie.is_animating()*
+    Whether {win} animates. `nil`: any window; 0: the current window.
+
+stop()                                                       *smoothie.stop()*
+    Lands every animation exactly on its target.
+
+enable(), disable(), toggle()                              *smoothie.enable()*
+    Set the `enabled` option.
+
+enabled([{win}])                                          *smoothie.enabled()*
+    Whether smoothie is enabled for {win}, a window ID or 0 (default: the
+    current window), see |smoothie-disable|. A command can still run
+    instantly (|smoothie-behaviour|).
+
+default_keys                                           *smoothie.default_keys*
+    The 16 default keys: >
+    <C-D> <C-U> <C-F> <C-B> <PageDown> <PageUp> <S-Down> <S-Up>
+    z+ z^ zt z<CR> z. zz z- zb
+<
+skipped                                                     *smoothie.skipped*
+    `"<mode> <lhs>"` entries for keys left alone because something else
+    already maps them.
+
+==============================================================================
+6. MAPPINGS                                                *smoothie-mappings*
+
+Keys are mapped in Normal and Visual mode only, never in Select,
+Operator-pending, Insert, Command-line or Terminal mode, so `d<C-D>` and
+typing in Select mode behave natively. A key that is already mapped in a
+mode is left alone, as |:map-<unique>| would; |:checkhealth| smoothie lists
+such keys. Neovim's own default mappings (Visual `*` and `#`) are kept and
+not reported.
+
+These are always defined, in Normal and Visual mode:
+
+  <Plug>(SmoothieDownwards)     <C-D>          *<Plug>(SmoothieDownwards)*
+  <Plug>(SmoothieUpwards)       <C-U>            *<Plug>(SmoothieUpwards)*
+  <Plug>(SmoothieForwards)      <C-F>           *<Plug>(SmoothieForwards)*
+  <Plug>(SmoothieBackwards)     <C-B>          *<Plug>(SmoothieBackwards)*
+  <Plug>(Smoothie_gg)           gg                   *<Plug>(Smoothie_gg)*
+  <Plug>(Smoothie_G)            G                     *<Plug>(Smoothie_G)*
+
+A count typed before a mapping is passed on: `3<C-D>` sets 'scroll' once.
+
+==============================================================================
+7. DISABLING                                                *smoothie-disable*
+
+Checked on every command, in this order. When one applies, the command runs
+natively and instantly:
+
+  1. `g:neovide` or `g:started_by_firenvim` is set to a value other than 0
+     or |v:false| (Neovide animates scrolling itself; firenvim redraws
+     slowly).
+  2. `g:smoothie_enabled` is 0 or |v:false|.
+  3. The `enabled` option is false (|:Smoothie|).
+  4. `w:smoothie_enabled` or `b:smoothie_enabled` is 0 or |v:false|.
+  5. The buffer's 'buftype' or 'filetype' is excluded.
+  6. The buffer is larger than `max_filesize`.
+  7. `exclude_binary` is on and the buffer is binary (|b:smoothie_binary|).
+
+==============================================================================
+8. VIM-SMOOTHIE COMPATIBILITY                                *smoothie-compat*
+
+When setup() has not run, these globals are read once, at startup:
+
+  `g:smoothie_remapped_commands`     keys to map instead of the defaults
+                                   (the two flags below are then ignored)
+  `g:smoothie_no_default_mappings`   map nothing
+  `g:smoothie_experimental_mappings` also map `gg` and `G`
+
+`g:smoothie_enabled` is read on every command. `g:smoothie_update_interval`,
+the `g:smoothie_speed_*` factors, `g:smoothie_redraw_at_finish` and
+`g:smoothie_break_on_reverse` are ignored; |:checkhealth| reports them.
+
+                                                               *smoothie#do()*
+smoothie#do({command})
+    Scrolls with raw keys, e.g. `smoothie#do("\<C-D>")`. |v:count| is
+    prefixed. `smoothie#downwards()`, `smoothie#upwards()`,
+    `smoothie#forwards()` and `smoothie#backwards()` also exist.
+    Search keys run from a Vimscript function are subject to
+    |function-search-undo|, which resets |v:hlsearch|; use the mappings or
+    |smoothie.scroll()| for them.
+
+==============================================================================
+9. BEHAVIOUR                                              *smoothie-behaviour*
+
+Instant execution ~
+Macros, |:normal|, |feedkeys()| without the "t" flag and keys at the end of
+a mapping's right-hand side run natively and synchronously, so a script
+sees the final state at once. So do windows with 'scrollbind' or
+'cursorbind', 'foldopen' containing "all", 'foldclose' "all" with
+'foldenable', and 'nowrap' windows where the cursor could scroll
+horizontally.
+
+Keys during an animation ~
+Any key lands the animation exactly before it runs, except count digits,
+<MouseMove> and <Ignore>. A mouse click or an unmapped wheel keeps the view
+on screen, so the click hits the text you saw. A bracketed paste lands the
+animation first. Animations run in Normal and Visual mode; a mode change or
+a window resize lands them.
+
+Other actors ~
+If something else moves the cursor during an animation, the animation stops
+at its target view with that cursor. If something else scrolls, or the text
+changes, the animation lands on its target at once (following the text).
+An animation in a window that loses focus without a key keeps running there
+and lands exactly. Inside |getchar()| loops the plugin draws the frames
+itself.
+
+Neovim 0.10 and 0.11 ~
+Without the `max_height` option of |nvim_win_text_height()| a distance is
+measured in full instead of stopping at `max_travel`, and jumps over more
+than 4000 lines always start at `max_travel` from their target. Neovim 0.10
+has no 'eventignorewin', so `quiet` acts as `false` there.
+
+==============================================================================
+10. EVENTS AND QUIET MODE                   *smoothie-events* *smoothie-quiet*
+
+Each frame is an ordinary scroll: |WinScrolled| and |CursorMoved| fire from
+Neovim's main loop once per frame. The plugin sets no option except
+'belloff' (while it replays a command or runs one only to find its target),
+'scrolloff' (while landing, if something changed it during the animation)
+and, with `quiet`, 'eventignorewin', always with |:noautocmd|.
+
+With `quiet`, the animated window ignores |WinScrolled| while the animation
+runs, and |CursorMoved| too when the animation moves the cursor: the plugin
+adds them to the window's local 'eventignorewin' and removes them when the
+animation ends. Neovim then fires |WinScrolled| once, with the change of the
+whole motion in |v:event|, and |CursorMoved| once if the cursor moved. Keys
+chained into one motion give one event. Changes that something else makes
+to 'eventignorewin' meanwhile (`:setlocal eventignorewin+=WinEnter`, or
+|:set|, which also sets the global value) are kept.
+
+Turn `quiet` on when plugins react to these events with heavy handlers or
+throttle their updates (render-markdown.nvim updates on the first of a
+series of events only): they then run once per motion and see the final
+view. The cost is that scrollbars, context headers and the like show the
+state from before the motion until the animation ends.
+
+If the animated window is closed, or shows another buffer, without autocmds
+(|:noautocmd|) during the animation, autocmds in the `smoothie_restore`
+group put the value back in each window that later shows the animated
+buffer. They stay until the animated window shows the buffer again or,
+once that window is closed, until the buffer is wiped out.
+
+==============================================================================
+11. LIMITATIONS                                         *smoothie-limitations*
+
+- With 'scrolloff' at least half the window, keys chained during an
+  animation can land a few rows off Neovim's own result. Single keys land
+  exactly.
+- If an asynchronous edit deletes the target line itself, the animation
+  lands on the line that took its place.
+- A window resized during an animation lands where the resize would have
+  put the target, keeping the cursor's relative row. Neovim sometimes
+  reuses a row fraction saved by an earlier resize instead (after |zt|,
+  |zz| or |zb|); then the view can differ by a few rows. With 'splitkeep'
+  "screen" or "topline" the animation lands on the target view, and Neovim
+  scrolls to show the cursor if it no longer fits.
+- lazy.nvim's `keys` handler replays the first key press as not typed, so
+  that press is instant. Load the plugin normally; it is cheap at startup.
+- A mapping whose right-hand side starts with a count or other keys, like
+  `nmap X 5<C-D>`, scrolls instantly. Use `scroll('5<C-d>')` or a <Plug>
+  mapping instead.
+- |smoothie.scroll()| and |smoothie#do()| run their keys like |:normal!|:
+  in a macro or mapping, a command that fails (<C-D> on the last line, a
+  search without a match) does not end the macro or mapping. The mapped
+  keys and <Plug> mappings end it, as Neovim does.
+- A buffer switch made by a script during an animation (an LSP jump, a file
+  explorer) records the line shown at that moment in the |jumplist|:
+  Neovim records it before |BufLeave|, where the animation lands.
+- With 'conceallevel' and `conceal_lines` extmarks, a line whose concealing
+  depends on the cursor ('concealcursor') can make Neovim validate the view
+  again when it redraws: the animation then ends with a small step back.
+
+With `quiet`:
+
+- The events of an animation that a key lands merge with the key's own:
+  one |WinScrolled| for both, and no |CursorMoved| for the animation when
+  the key leaves the cursor where the last frame drew it.
+- Any |WinScrolled| or |WinResized| that Neovim fires in the tab page
+  during an animation (a window a script scrolls, a resized notification
+  float, another animation ending) cuts the animation's |WinScrolled|
+  change to what comes after it. When such a window shows the buffer of the
+  animating current window, its own |WinScrolled| does not fire, because
+  Neovim checks the current window's 'eventignorewin' for it.
+- An animation whose window loses focus or its buffer, or whose mode
+  changes, without a key (a script's |:wincmd| or |:startinsert|) fires no
+  |CursorMoved| for its motion: Neovim fires |CursorMoved| only in the
+  current window, in Normal or Visual mode.
+- Windows handled without autocmds can leave both events ignored in a
+  window that later shows the animated buffer: a window opened on that
+  buffer with `noautocmd` during the animation that also leaves it or
+  closes that way before the animation ends, and another window showing
+  the buffer without autocmds after the animated window was closed or
+  switched that way.
+
+ vim:tw=78:ts=8:noet:ft=help:norl:
